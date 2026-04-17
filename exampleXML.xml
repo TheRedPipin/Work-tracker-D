@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project title="My New Project Name">
+  <phase title="Phase 1: Getting Started">
+    <task id="task01" title="The First Goal" completed="false" note="Just a lil description of splish" />
+    <task id="task02" title="The Second Goal" completed="true" note="This one is already done! YAY! :D" />
+  </phase>
+  <phase title="Phase 2: The Next Step">
+    <task id="task03" title="Tasks don't always need notes!" completed="false" />
+    <task id="task04" title="Final Step" completed="false" note="Don't need to end it with anything fancy" />
+  </phase>
+</project>
