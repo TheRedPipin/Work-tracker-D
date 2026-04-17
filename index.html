@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XML PROJECT TRACKER</title>
+    <style>
+        :root { --bg: #fffef5; --border: 3px solid #000; --shadow: 6px 6px 0px #000; --accent: #FFE600; }
+        body { font-family: 'Courier New', Courier, monospace; background: var(--bg); padding: 2rem; }
+        .container { max-width: 750px; margin: 0 auto; }
+        
+        .upload-zone { border: var(--border); background: #fff; padding: 1rem; margin-bottom: 2rem; box-shadow: var(--shadow); }
+        input[type="file"] { font-family: inherit; }
+
+        .global-controls { display: flex; gap: 10px; margin-bottom: 1rem; }
+        button { 
+            font-family: inherit; font-weight: bold; cursor: pointer; 
+            border: var(--border); background: #fff; padding: 5px 15px;
+            box-shadow: 3px 3px 0px #000; transition: 0.1s;
+        }
+        button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0px #000; }
+        button.all-true { background: #00E676; }
+        button.all-false { background: #ff5252; color: white; }
+
+        .progress-bar { border: var(--border); background: #fff; height: 30px; margin: 20px 0; box-shadow: var(--shadow); }
+        #fill { background: #00E676; height: 100%; width: 0%; transition: 0.4s; }
+
+        .phase { border: var(--border); background: #fff; margin-bottom: 1.5rem; padding: 1rem; box-shadow: var(--shadow); }
+        .phase-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+        .phase-title { background: var(--accent); padding: 5px 10px; border: var(--border); font-weight: bold; text-transform: uppercase; }
+        .phase-controls { display: flex; gap: 5px; }
+        .phase-controls button { font-size: 0.7rem; padding: 2px 8px; box-shadow: 2px 2px 0px #000; }
+        
+        .task { display: flex; align-items: flex-start; gap: 12px; padding: 10px; cursor: pointer; border-bottom: 1px solid #ddd; }
+        .task:last-child { border-bottom: none; }
+        .task.done { opacity: 0.5; background: #f9f9f9; }
+        .task.done strong { text-decoration: line-through; }
+        
+        .box { width: 22px; height: 22px; border: 2px solid #000; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: #fff; font-weight: bold; }
+        .task.done .box { background: #00E676; }
+        
+        small { color: #666; display: block; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>PROJECT TRACKER</h1>
+    
+    <div class="upload-zone">
+        <strong>1. Load XML Task File:</strong><br><br>
+        <input type="file" id="fileInput" accept=".xml">
+    </div>
+
+    <div class="global-controls">
+        <button class="all-true" onclick="setGlobal(true)">SET ALL TRUE</button>
+        <button class="all-false" onclick="setGlobal(false)">SET ALL FALSE</button>
+    </div>
+
+    <div class="progress-bar"><div id="fill"></div></div>
+    <div id="display-area"><em>Upload an XML file to display tasks.</em></div>
+</div>
+
+<script>
+    let state = JSON.parse(localStorage.getItem('xml-todo-save') || '{}');
+    let currentXmlDoc = null;
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const parser = new window.DOMParser();
+            currentXmlDoc = parser.parseFromString(e.target.result, "text/xml");
+            
+            currentXmlDoc.querySelectorAll('task').forEach(t => {
+                const id = t.getAttribute('id');
+                if (state[id] === undefined) {
+                    state[id] = t.getAttribute('completed') === 'true';
+                }
+            });
+            render();
+        };
+        reader.readAsText(file);
+    });
+
+    function render() {
+        if (!currentXmlDoc) return;
+        const area = document.getElementById('display-area');
+        area.innerHTML = '';
+
+        currentXmlDoc.querySelectorAll('phase').forEach((phase, phaseIdx) => {
+            const phaseTitle = phase.getAttribute('title');
+            const tasks = phase.querySelectorAll('task');
+            let phaseEl = document.createElement('div');
+            phaseEl.className = 'phase';
+            let headerHtml = `
+                <div class="phase-header">
+                    <div class="phase-title">${phaseTitle}</div>
+                    <div class="phase-controls">
+                        <button onclick="setPhase(${phaseIdx}, true)">TRUE</button>
+                        <button onclick="setPhase(${phaseIdx}, false)">FALSE</button>
+                    </div>
+                </div>`;
+            
+            let tasksHtml = '';
+            tasks.forEach(task => {
+                const id = task.getAttribute('id');
+                const isDone = state[id];
+                tasksHtml += `
+                    <div class="task ${isDone ? 'done' : ''}" onclick="toggle('${id}')">
+                        <div class="box"></div>
+                        <div>
+                            <strong>${task.getAttribute('title')}</strong>
+                            ${task.getAttribute('note') ? `<small>${task.getAttribute('note')}</small>` : ''}
+                        </div>
+                    </div>`;
+            });
+
+            phaseEl.innerHTML = headerHtml + tasksHtml;
+            area.appendChild(phaseEl);
+        });
+        updateProgress();
+    }
+
+    function toggle(id) {
+        state[id] = !state[id];
+        saveAndRender();
+    }
+
+    function setGlobal(val) {
+        if (!currentXmlDoc) return;
+        currentXmlDoc.querySelectorAll('task').forEach(task => {
+            state[task.getAttribute('id')] = val;
+        });
+        saveAndRender();
+    }
+
+    function setPhase(idx, val) {
+        const phases = currentXmlDoc.querySelectorAll('phase');
+        phases[idx].querySelectorAll('task').forEach(task => {
+            state[task.getAttribute('id')] = val;
+        });
+        saveAndRender();
+    }
+
+    function saveAndRender() {
+        localStorage.setItem('xml-todo-save', JSON.stringify(state));
+        render();
+    }
+
+    function updateProgress() {
+        const tasks = document.querySelectorAll('.task');
+        const done = document.querySelectorAll('.task.done');
+        const pct = tasks.length ? (done.length / tasks.length) * 100 : 0;
+        document.getElementById('fill').style.width = pct + '%';
+    }
+</script>
+
+</body>
+</html>
